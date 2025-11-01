@@ -1,0 +1,12 @@
+node_modules
+.git
+.env
+.local
+*.log
+.replit
+replit.nix
+.config
+migrations
+drizzle
+.gitignore
+README.md
