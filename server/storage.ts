@@ -53,6 +53,9 @@ export class MemStorage implements IStorage {
       isActive: true,
       nextCheckinAt,
       createdAt: now,
+      isInReplayMode: false,
+      replayTarget: null,
+      originalTarget: null,
     };
     
     this.tasks.set(id, task);

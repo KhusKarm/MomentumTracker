@@ -65,7 +65,14 @@ export default function Tasks() {
   });
 
   const handleCreateTask = async (taskData: any) => {
-    await createTaskMutation.mutateAsync(taskData);
+    const transformedData = {
+      name: taskData.name,
+      category: taskData.category,
+      metricType: taskData.metricType,
+      target: taskData.target,
+      intervalMinutes: taskData.interval,
+    };
+    await createTaskMutation.mutateAsync(transformedData);
   };
 
   if (isLoading) {
