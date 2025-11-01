@@ -35,6 +35,13 @@ export default function CheckinModal({
 
   const handleSuccess = () => {
     const value = parseInt(inputValue) || 0;
+    
+    // If user entered 0 or nothing, treat as defeat
+    if (value === 0 || inputValue.trim() === "") {
+      handleDefeat();
+      return;
+    }
+    
     onSuccess(value);
     setInputValue("");
     onOpenChange(false);

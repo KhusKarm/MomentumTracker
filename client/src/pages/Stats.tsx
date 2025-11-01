@@ -1,26 +1,27 @@
+import { useQuery } from "@tanstack/react-query";
 import MonthlyStats from "@/components/MonthlyStats";
 import MetricCard from "@/components/MetricCard";
 import { Calendar, TrendingUp, Award } from "lucide-react";
 import { motion } from "framer-motion";
+import type { Task } from "@shared/schema";
 
 export default function Stats() {
-  //todo: remove mock functionality
-  const monthlyData = [
-    { date: 'Week 1', value: 180 },
-    { date: 'Week 2', value: 240 },
-    { date: 'Week 3', value: 210 },
-    { date: 'Week 4', value: 270 },
-  ];
+  const { data: tasks = [] } = useQuery<Task[]>({ queryKey: ["/api/tasks"] });
+  const { data: stats } = useQuery<{ momentumScore: number; replaySuccessRate: number }>({ queryKey: ["/api/stats"] });
 
-  const tasks = [
-    { name: "Coding Practice", metricType: "duration" as const, data: monthlyData },
-    { name: "Push-ups", metricType: "count" as const, data: [
-      { date: 'Week 1', value: 210 },
-      { date: 'Week 2', value: 280 },
-      { date: 'Week 3', value: 245 },
-      { date: 'Week 4', value: 315 },
-    ]},
-  ];
+  // Calculate best streak across all tasks
+  const bestStreak = tasks.reduce((max, task) => Math.max(max, task.streak), 0);
+
+  // Generate weekly data for charts (mock for now since we need historical data)
+  const generateWeeklyData = (taskId: string) => {
+    // In a real app, this would fetch historical check-in data
+    return [
+      { date: 'Week 1', value: Math.floor(Math.random() * 200) + 100 },
+      { date: 'Week 2', value: Math.floor(Math.random() * 200) + 100 },
+      { date: 'Week 3', value: Math.floor(Math.random() * 200) + 100 },
+      { date: 'Week 4', value: Math.floor(Math.random() * 200) + 100 },
+    ];
+  };
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -43,41 +44,49 @@ export default function Stats() {
         >
           <MetricCard
             icon={Calendar}
-            label="Total Days Active"
-            value="23"
-            sublabel="This month"
+            label="Active Tasks"
+            value={tasks.length}
+            sublabel="Total"
           />
           <MetricCard
             icon={TrendingUp}
-            label="Average Score"
-            value="87%"
-            sublabel="Last 30 days"
+            label="Momentum Score"
+            value={stats?.momentumScore ? `${stats.momentumScore}%` : "0%"}
+            sublabel="Today"
           />
           <MetricCard
             icon={Award}
             label="Best Streak"
-            value="12"
+            value={bestStreak}
             sublabel="intervals"
             variant="success"
           />
         </motion.div>
 
-        <div className="space-y-6">
-          {tasks.map((task, index) => (
-            <motion.div
-              key={task.name}
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 + index * 0.1 }}
-            >
-              <MonthlyStats
-                taskName={task.name}
-                metricType={task.metricType}
-                data={task.data}
-              />
-            </motion.div>
-          ))}
-        </div>
+        {tasks.length === 0 ? (
+          <div className="text-center py-12">
+            <p className="text-muted-foreground">
+              No tasks yet. Create tasks to see your statistics!
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {tasks.map((task, index) => (
+              <motion.div
+                key={task.id}
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.2 + index * 0.1 }}
+              >
+                <MonthlyStats
+                  taskName={task.name}
+                  metricType={task.metricType as "duration" | "count"}
+                  data={generateWeeklyData(task.id)}
+                />
+              </motion.div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

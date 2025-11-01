@@ -36,10 +36,10 @@ function Navigation() {
               
               return (
                 <Link key={item.path} href={item.path}>
-                  <a
+                  <div
                     className={`
                       flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium
-                      transition-colors relative
+                      transition-colors relative cursor-pointer
                       ${isActive 
                         ? 'text-foreground' 
                         : 'text-muted-foreground hover:text-foreground'
@@ -56,7 +56,7 @@ function Navigation() {
                         transition={{ type: "spring", duration: 0.5 }}
                       />
                     )}
-                  </a>
+                  </div>
                 </Link>
               );
             })}

@@ -1,4 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import ActiveTaskDisplay from "@/components/ActiveTaskDisplay";
 import MetricCard from "@/components/MetricCard";
 import CheckinModal from "@/components/CheckinModal";
@@ -7,47 +9,162 @@ import TaskTimer from "@/components/TaskTimer";
 import { Flame, Target, TrendingUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { motion } from "framer-motion";
+import { useIntervalManager } from "@/hooks/use-interval-manager";
+import type { Task } from "@shared/schema";
 
 export default function Dashboard() {
   const { toast } = useToast();
-  const [showCheckin, setShowCheckin] = useState(false);
+  const { pendingCheckIns, dismissCheckIn } = useIntervalManager();
+  const [currentCheckInTask, setCurrentCheckInTask] = useState<Task | null>(null);
+  const [defeatedTask, setDefeatedTask] = useState<Task | null>(null); 
   const [showReplay, setShowReplay] = useState(false);
   const [showTimer, setShowTimer] = useState(false);
-  const [streak, setStreak] = useState(7);
-  const [progress, setProgress] = useState(65);
+  const [isReplayMode, setIsReplayMode] = useState(false);
 
-  //todo: remove mock functionality
-  const activeTask = {
-    name: "Coding Practice",
-    category: "Study",
-    metricType: "duration" as const,
-    target: 45,
-    nextCheckinMinutes: 25,
-  };
+  const { data: tasks = [] } = useQuery<Task[]>({ queryKey: ["/api/tasks"] });
+  const { data: stats } = useQuery<{ momentumScore: number; replaySuccessRate: number }>({ queryKey: ["/api/stats"] });
 
-  const handleCheckinSuccess = (value: number) => {
-    console.log("Checkin success:", value);
-    setStreak(prev => prev + 1);
-    setProgress(0);
-    toast({
-      title: "Success!",
-      description: `Great work! Streak increased to ${streak + 1}`,
+  const activeTask = tasks.find(t => t.isActive) || tasks[0];
+
+  const checkInMutation = useMutation({
+    mutationFn: async (data: { taskId: string; value: number; wasDefeat: boolean; wasReplay: boolean; replayGoal?: number }) => {
+      return apiRequest("POST", "/api/check-ins", data);
+    },
+  });
+
+  // Auto-show check-in modal when task is due
+  useEffect(() => {
+    if (pendingCheckIns.length > 0 && !currentCheckInTask) {
+      const firstPending = pendingCheckIns[0];
+      setCurrentCheckInTask(firstPending.task);
+      // Set replay mode based on task's replay state
+      setIsReplayMode(firstPending.task.isInReplayMode || false);
+    }
+  }, [pendingCheckIns, currentCheckInTask]);
+
+  const handleCheckinSuccess = async (value: number) => {
+    if (!currentCheckInTask) return;
+
+    const taskName = currentCheckInTask.name;
+    const wasReplay = isReplayMode;
+
+    await checkInMutation.mutateAsync({
+      taskId: currentCheckInTask.id,
+      value,
+      wasDefeat: false,
+      wasReplay: isReplayMode,
+      replayGoal: isReplayMode ? currentCheckInTask.target : undefined,
     });
+
+    // Await query refetch to ensure fresh data before proceeding
+    await queryClient.invalidateQueries({ 
+      queryKey: ["/api/tasks"],
+      refetchType: 'active'
+    });
+    await queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+
+    dismissCheckIn(currentCheckInTask.id);
+    setCurrentCheckInTask(null);
+    setIsReplayMode(false);
+    
+    if (wasReplay) {
+      toast({
+        title: "Replay Success!",
+        description: `Excellent recovery on ${taskName}!`,
+      });
+    } else {
+      toast({
+        title: "Success!",
+        description: `Great work on ${taskName}!`,
+      });
+    }
   };
 
-  const handleDefeat = () => {
-    console.log("Defeat logged");
-    setShowCheckin(false);
+  const handleDefeat = async () => {
+    if (!currentCheckInTask) return;
+    
+    // Record the defeat
+    await checkInMutation.mutateAsync({
+      taskId: currentCheckInTask.id,
+      value: 0,
+      wasDefeat: true,
+      wasReplay: isReplayMode,
+    });
+
+    // Await query refetch to ensure fresh data
+    await queryClient.invalidateQueries({ 
+      queryKey: ["/api/tasks"],
+      refetchType: 'active'
+    });
+    await queryClient.invalidateQueries({ queryKey: ["/api/stats"] });
+    
+    // Store defeated task for replay flow
+    setDefeatedTask(currentCheckInTask);
+    dismissCheckIn(currentCheckInTask.id);
+    setCurrentCheckInTask(null);
     setShowReplay(true);
   };
 
-  const handleReplayCommit = (goal: number) => {
-    console.log("Replay committed:", goal);
+  const handleReplayCommit = async (replayGoal: number) => {
+    if (!defeatedTask) return;
+    
+    const metricType = defeatedTask.metricType;
+      
+    // Update task with replay mode enabled, preserving original target
+    // If already in replay mode, keep the existing originalTarget, otherwise save current target
+    await apiRequest("PATCH", `/api/tasks/${defeatedTask.id}`, {
+      isInReplayMode: true,
+      originalTarget: defeatedTask.originalTarget || defeatedTask.target, // Preserve existing original or save current
+      replayTarget: replayGoal, // Set the reduced replay goal
+      target: replayGoal, // Set current target to replay goal
+      // Set next check-in to 30 minutes from now for immediate replay
+      nextCheckinAt: new Date(Date.now() + 30 * 60 * 1000),
+    });
+
+    // Await query refetch to ensure interval manager gets fresh data
+    await queryClient.invalidateQueries({ 
+      queryKey: ["/api/tasks"],
+      refetchType: 'active'
+    });
+
+    setShowReplay(false);
+    setDefeatedTask(null);
+    
     toast({
       title: "Replay Set",
-      description: `You've committed to ${goal} minutes in the next interval`,
+      description: `You've committed to ${replayGoal} ${metricType === 'duration' ? 'minutes' : 'reps'} in the next 30 minutes`,
     });
   };
+
+  const getProgress = () => {
+    if (!activeTask) return 0;
+    const now = new Date();
+    const nextCheckin = new Date(activeTask.nextCheckinAt);
+    const intervalMs = activeTask.intervalMinutes * 60 * 1000;
+    const startTime = new Date(nextCheckin.getTime() - intervalMs);
+    const elapsed = now.getTime() - startTime.getTime();
+    const progress = Math.min((elapsed / intervalMs) * 100, 100);
+    return Math.max(0, progress);
+  };
+
+  const getNextCheckinMinutes = () => {
+    if (!activeTask) return 0;
+    const now = new Date();
+    const nextCheckin = new Date(activeTask.nextCheckinAt);
+    const diffMs = nextCheckin.getTime() - now.getTime();
+    return Math.max(0, Math.floor(diffMs / (1000 * 60)));
+  };
+
+  if (!activeTask) {
+    return (
+      <div className="min-h-screen bg-background p-4 md:p-8 flex items-center justify-center">
+        <div className="text-center space-y-4">
+          <h2 className="text-2xl font-bold text-foreground">No Active Tasks</h2>
+          <p className="text-muted-foreground">Create your first task to get started!</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background p-4 md:p-8">
@@ -71,12 +188,14 @@ export default function Dashboard() {
             <TaskTimer
               taskName={activeTask.name}
               onStop={(duration) => {
-                console.log("Timer stopped:", duration);
                 setShowTimer(false);
-                toast({
-                  title: "Session Complete",
-                  description: `You worked for ${Math.floor(duration / 60)} minutes`,
-                });
+                const minutes = Math.floor(duration / 60);
+                if (minutes > 0) {
+                  toast({
+                    title: "Session Complete",
+                    description: `You worked for ${minutes} minutes`,
+                  });
+                }
               }}
             />
           </motion.div>
@@ -88,11 +207,11 @@ export default function Dashboard() {
             <ActiveTaskDisplay
               taskName={activeTask.name}
               category={activeTask.category}
-              metricType={activeTask.metricType}
+              metricType={activeTask.metricType as "duration" | "count"}
               target={activeTask.target}
-              progress={progress}
-              streak={streak}
-              nextCheckinMinutes={activeTask.nextCheckinMinutes}
+              progress={getProgress()}
+              streak={activeTask.streak}
+              nextCheckinMinutes={getNextCheckinMinutes()}
               onStartTimer={() => setShowTimer(true)}
             />
           </motion.div>
@@ -107,43 +226,37 @@ export default function Dashboard() {
             <MetricCard
               icon={Flame}
               label="Current Streak"
-              value={streak}
+              value={activeTask.streak}
               sublabel="intervals"
               variant="success"
             />
             <MetricCard
               icon={Target}
               label="Momentum Score"
-              value="85%"
+              value={stats?.momentumScore ? `${stats.momentumScore}%` : "0%"}
               sublabel="Today"
             />
             <MetricCard
               icon={TrendingUp}
               label="Replay Success"
-              value="92%"
+              value={stats?.replaySuccessRate ? `${stats.replaySuccessRate}%` : "0%"}
               sublabel="This week"
             />
           </div>
         </motion.div>
-
-        {/* Demo buttons */}
-        <div className="flex gap-4 justify-center">
-          <button
-            onClick={() => setShowCheckin(true)}
-            className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-            data-testid="button-demo-checkin"
-          >
-            Demo Check-in
-          </button>
-        </div>
       </div>
 
       <CheckinModal
-        open={showCheckin}
-        onOpenChange={setShowCheckin}
-        taskName={activeTask.name}
-        metricType={activeTask.metricType}
-        targetValue={activeTask.target}
+        open={!!currentCheckInTask}
+        onOpenChange={(open) => {
+          if (!open && currentCheckInTask) {
+            dismissCheckIn(currentCheckInTask.id);
+            setCurrentCheckInTask(null);
+          }
+        }}
+        taskName={currentCheckInTask?.name || ""}
+        metricType={(currentCheckInTask?.metricType as "duration" | "count") || "duration"}
+        targetValue={currentCheckInTask?.target || 0}
         onSuccess={handleCheckinSuccess}
         onDefeat={handleDefeat}
       />
@@ -151,11 +264,14 @@ export default function Dashboard() {
       <ReplayModal
         open={showReplay}
         onOpenChange={setShowReplay}
-        taskName={activeTask.name}
-        metricType={activeTask.metricType}
-        originalTarget={activeTask.target}
+        taskName={defeatedTask?.name || ""}
+        metricType={(defeatedTask?.metricType as "duration" | "count") || "duration"}
+        originalTarget={defeatedTask?.target || 0}
         onCommit={handleReplayCommit}
-        onSkip={() => console.log("Replay skipped")}
+        onSkip={() => {
+          setShowReplay(false);
+          setDefeatedTask(null);
+        }}
       />
     </div>
   );
