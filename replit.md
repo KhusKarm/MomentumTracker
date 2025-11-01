@@ -59,6 +59,7 @@ Preferred communication style: Simple, everyday language.
 - TypeScript throughout
 - Drizzle ORM for database operations
 - PostgreSQL database (via Neon serverless)
+- **Serverless-ready**: HTTP driver for Vercel/edge deployment compatibility
 
 **API Design**:
 - RESTful endpoints under `/api` prefix
@@ -71,6 +72,12 @@ Preferred communication style: Simple, everyday language.
 - In-memory implementation for development (`MemStorage`)
 - Production uses Drizzle ORM with PostgreSQL
 - Schema defined in shared folder for type safety
+
+**Deployment Architecture**:
+- `server/db.ts`: Uses Neon HTTP driver (`drizzle-orm/neon-http`) for serverless compatibility
+- `api/index.ts`: Vercel serverless function wrapper for Express backend
+- `vercel.json`: Deployment configuration with routing rules
+- Works on both traditional servers (Replit) and serverless platforms (Vercel)
 
 **Database Schema**:
 - `tasks` table: Core task configuration and state (name, category, metric type, target, interval, streak, replay mode flags)
