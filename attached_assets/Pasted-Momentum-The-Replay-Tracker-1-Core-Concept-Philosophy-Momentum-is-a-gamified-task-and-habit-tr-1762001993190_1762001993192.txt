@@ -1,0 +1,97 @@
+Momentum: The Replay Tracker
+
+1. Core Concept & Philosophy
+
+Momentum is a gamified task and habit tracker designed to break down overwhelming daily goals into manageable, self-correcting micro-tasks. Its core philosophy, derived from gaming, is "Defeat is a Replay Opportunity."
+
+Instead of traditional habit tracking where a missed day results in a broken streak and high frustration, Momentum uses scheduled, mandatory Interval Check-ins. If a task is missed, the system immediately prompts the user to "Replay" and commit to the task in the next interval, turning a failure into a rapid correction and emotional recovery. This fosters resilience and continuous, low-stakes effort.
+
+2. UI/UX Philosophy
+
+The design prioritizes a simple, clean, and highly motivating experience.
+
+Aspect
+
+Description
+
+Theme
+
+High-contrast, dark mode for easy readability and focus. Use rich, primary accent colors (e.g., deep blue or electric green) to signify success and progress.
+
+Dashboard
+
+Minimalist. The main screen shows only the Current Active Task, its target, and a prominent Progress Ring visualization showing completion towards the next check-in.
+
+Interaction
+
+Smooth animations for task completion, and a satisfying, immediate visual cue for a successful "Replay."
+
+3. Key Features
+
+A. Task Creation & Categorization
+
+Users can define tasks under custom categories, with different tracking metrics:
+
+Category Example
+
+Task Example
+
+Metric Type
+
+Tracking Input
+
+Exercise
+
+Run Time
+
+Duration
+
+Start/Stop Timer or Manual Input (e.g., "30 minutes")
+
+Exercise
+
+Push-ups
+
+Count
+
+Simple Number Input (e.g., "25")
+
+Study
+
+Code Practice
+
+Duration
+
+Start/Stop Timer or Manual Input (e.g., "45 minutes")
+
+Personal
+
+Read Pages
+
+Count
+
+Simple Number Input (e.g., "10 pages")
+
+B. The Interval Check-in Engine (The "Replay Loop")
+
+This is the core differentiator:
+
+Interval Setup: The user sets a general check-in frequency (e.g., every 60 minutes, or every 90 minutes). This is customizable per category or globally.
+
+Scheduled Prompt: When the interval expires, a non-intrusive, focused notification/modal appears: "Check-in: Did you complete your 30-minute Coding session?"
+
+Success State (Streak): If the user selects "Yes," the task is logged as a successful segment, and their Streak counter increases. The next check-in is scheduled.
+
+Defeat/Miss State (Replay): If the user selects "No" (or misses the check-in time window), the system registers a "Defeat." Instead of ending the daily goal, the app offers an immediate, smaller Replay Goal for the next interval (e.g., "Okay, Defeat logged. Can you commit to 15 minutes of coding in the next 30 minutes?").
+
+C. Progress Tracking & Metrics
+
+The app tracks progress through the lens of continuous effort, not just absolute success:
+
+Momentum Score: A daily score based on the ratio of successful intervals vs. total intervals attempted.
+
+Replay Success Rate: The percentage of "Defeats" that were successfully corrected in the immediate subsequent "Replay" interval. This is the core metric for learning resilience.
+
+Category Heatmap: A visual representation of high-effort vs. low-effort times of day/week across all user categories.
+
+Time/Count Leaderboards (Self-Only): Simple graphs showing effort accumulation over time (e.g., "You have accumulated 12 hours of coding this week").
