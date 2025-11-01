@@ -1,5 +1,6 @@
-import { type Task, type InsertTask, type CheckIn, type InsertCheckIn } from "@shared/schema";
-import { randomUUID } from "crypto";
+import { type Task, type InsertTask, type CheckIn, type InsertCheckIn, tasks, checkIns } from "@shared/schema";
+import { db } from "./db";
+import { eq, and, gte, desc } from "drizzle-orm";
 
 export interface IStorage {
   // Tasks
@@ -23,78 +24,53 @@ export interface IStorage {
   }>;
 }
 
-export class MemStorage implements IStorage {
-  private tasks: Map<string, Task>;
-  private checkIns: Map<string, CheckIn>;
-
-  constructor() {
-    this.tasks = new Map();
-    this.checkIns = new Map();
-  }
-
+export class DatabaseStorage implements IStorage {
   // Tasks
   async getTasks(): Promise<Task[]> {
-    return Array.from(this.tasks.values()).filter(t => t.isActive);
+    return await db.select().from(tasks).where(eq(tasks.isActive, true));
   }
 
   async getTask(id: string): Promise<Task | undefined> {
-    return this.tasks.get(id);
+    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+    return task || undefined;
   }
 
   async createTask(insertTask: InsertTask): Promise<Task> {
-    const id = randomUUID();
-    const now = new Date();
-    const nextCheckinAt = new Date(now.getTime() + insertTask.intervalMinutes * 60 * 1000);
-    
-    const task: Task = {
-      ...insertTask,
-      id,
-      streak: 0,
-      isActive: true,
-      nextCheckinAt,
-      createdAt: now,
-      isInReplayMode: false,
-      replayTarget: null,
-      originalTarget: null,
-    };
-    
-    this.tasks.set(id, task);
+    const [task] = await db
+      .insert(tasks)
+      .values(insertTask)
+      .returning();
     return task;
   }
 
   async updateTask(id: string, updates: Partial<Task>): Promise<Task | undefined> {
-    const task = this.tasks.get(id);
-    if (!task) return undefined;
-    
-    const updatedTask = { ...task, ...updates };
-    this.tasks.set(id, updatedTask);
-    return updatedTask;
+    const [task] = await db
+      .update(tasks)
+      .set(updates)
+      .where(eq(tasks.id, id))
+      .returning();
+    return task || undefined;
   }
 
   async deleteTask(id: string): Promise<boolean> {
-    return this.tasks.delete(id);
+    const result = await db.delete(tasks).where(eq(tasks.id, id)).returning();
+    return result.length > 0;
   }
 
   // Check-ins
   async getCheckIns(taskId: string): Promise<CheckIn[]> {
-    return Array.from(this.checkIns.values())
-      .filter(c => c.taskId === taskId)
-      .sort((a, b) => b.checkedInAt.getTime() - a.checkedInAt.getTime());
+    return await db
+      .select()
+      .from(checkIns)
+      .where(eq(checkIns.taskId, taskId))
+      .orderBy(desc(checkIns.checkedInAt));
   }
 
   async createCheckIn(insertCheckIn: InsertCheckIn): Promise<CheckIn> {
-    const id = randomUUID();
-    const checkIn: CheckIn = {
-      id,
-      taskId: insertCheckIn.taskId,
-      value: insertCheckIn.value,
-      wasDefeat: insertCheckIn.wasDefeat ?? false,
-      wasReplay: insertCheckIn.wasReplay ?? false,
-      replayGoal: insertCheckIn.replayGoal ?? null,
-      checkedInAt: new Date(),
-    };
-    
-    this.checkIns.set(id, checkIn);
+    const [checkIn] = await db
+      .insert(checkIns)
+      .values(insertCheckIn)
+      .returning();
     return checkIn;
   }
 
@@ -102,8 +78,15 @@ export class MemStorage implements IStorage {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
     
-    return Array.from(this.checkIns.values())
-      .filter(c => c.taskId === taskId && c.checkedInAt >= today);
+    return await db
+      .select()
+      .from(checkIns)
+      .where(
+        and(
+          eq(checkIns.taskId, taskId),
+          gte(checkIns.checkedInAt, today)
+        )
+      );
   }
 
   // Stats
@@ -122,22 +105,22 @@ export class MemStorage implements IStorage {
     const monthAgo = new Date(today);
     monthAgo.setMonth(monthAgo.getMonth() - 1);
     
-    const checkIns = await this.getCheckIns(taskId);
+    const allCheckIns = await this.getCheckIns(taskId);
     
-    const todayTotal = checkIns
+    const todayTotal = allCheckIns
       .filter(c => c.checkedInAt >= today && !c.wasDefeat)
       .reduce((sum, c) => sum + c.value, 0);
     
-    const weekTotal = checkIns
+    const weekTotal = allCheckIns
       .filter(c => c.checkedInAt >= weekAgo && !c.wasDefeat)
       .reduce((sum, c) => sum + c.value, 0);
     
-    const monthTotal = checkIns
+    const monthTotal = allCheckIns
       .filter(c => c.checkedInAt >= monthAgo && !c.wasDefeat)
       .reduce((sum, c) => sum + c.value, 0);
     
     // Calculate replay success rate
-    const replays = checkIns.filter(c => c.wasReplay);
+    const replays = allCheckIns.filter(c => c.wasReplay);
     const successfulReplays = replays.filter(c => !c.wasDefeat);
     const replaySuccessRate = replays.length > 0 
       ? (successfulReplays.length / replays.length) * 100 
@@ -147,4 +130,4 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export const storage = new DatabaseStorage();
