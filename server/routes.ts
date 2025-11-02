@@ -3,9 +3,12 @@ import { storage } from "./storage";
 import { insertTaskSchema, insertCheckInSchema, insertCategorySchema, insertJournalEntrySchema } from "@shared/schema";
 import { requireAuth, type AuthRequest } from "./middleware/auth";
 
+// IMPORTANT: The /api prefix has been REMOVED from all routes below.
+// Vercel's vercel.json rewrite rule handles routing /api/(.*) traffic here,
+// so Express only needs to listen for the remainder of the path (e.g., /categories, /journal).
 export async function registerRoutes(app: Express): Promise<void> {
     // Categories
-    app.get("/api/categories", requireAuth, async (req: AuthRequest, res) => {
+    app.get("/categories", requireAuth, async (req: AuthRequest, res) => {
       try {
         const categories = await storage.getCategories(req.userId!);
         res.json(categories);
@@ -18,7 +21,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.post("/api/categories", requireAuth, async (req: AuthRequest, res) => {
+    app.post("/categories", requireAuth, async (req: AuthRequest, res) => {
       try {
         const validated = insertCategorySchema.parse({ ...req.body, userId: req.userId });
         const category = await storage.createCategory(validated);
@@ -33,7 +36,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     });
 
     // Tasks CRUD
-    app.get("/api/tasks", requireAuth, async (req: AuthRequest, res) => {
+    app.get("/tasks", requireAuth, async (req: AuthRequest, res) => {
       try {
         const tasks = await storage.getTasks(req.userId!);
         res.json(tasks);
@@ -46,7 +49,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.get("/api/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
+    app.get("/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
       try {
         const task = await storage.getTask(req.params.id, req.userId!);
         if (!task) {
@@ -62,7 +65,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.post("/api/tasks", requireAuth, async (req: AuthRequest, res) => {
+    app.post("/tasks", requireAuth, async (req: AuthRequest, res) => {
       try {
         const validated = insertTaskSchema.parse({ ...req.body, userId: req.userId });
         const task = await storage.createTask(validated);
@@ -76,7 +79,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.patch("/api/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
+    app.patch("/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
       try {
         const task = await storage.updateTask(req.params.id, req.userId!, req.body);
         if (!task) {
@@ -92,7 +95,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.delete("/api/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
+    app.delete("/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
       try {
         const success = await storage.deleteTask(req.params.id, req.userId!);
         if (!success) {
@@ -109,7 +112,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     });
 
     // Check-ins
-    app.post("/api/check-ins", requireAuth, async (req: AuthRequest, res) => {
+    app.post("/check-ins", requireAuth, async (req: AuthRequest, res) => {
       try {
         const validated = insertCheckInSchema.parse({ ...req.body, userId: req.userId });
         const checkIn = await storage.createCheckIn(validated);
@@ -147,7 +150,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.get("/api/tasks/:id/check-ins", requireAuth, async (req: AuthRequest, res) => {
+    app.get("/tasks/:id/check-ins", requireAuth, async (req: AuthRequest, res) => {
       try {
         const checkIns = await storage.getCheckIns(req.params.id, req.userId!);
         res.json(checkIns);
@@ -160,7 +163,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.get("/api/check-ins/all", requireAuth, async (req: AuthRequest, res) => {
+    app.get("/check-ins/all", requireAuth, async (req: AuthRequest, res) => {
       try {
         const checkIns = await storage.getAllCheckIns(req.userId!);
         res.json(checkIns);
@@ -173,7 +176,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.get("/api/tasks/:id/stats", requireAuth, async (req: AuthRequest, res) => {
+    app.get("/tasks/:id/stats", requireAuth, async (req: AuthRequest, res) => {
       try {
         const stats = await storage.getTaskStats(req.params.id, req.userId!);
         res.json(stats);
@@ -187,7 +190,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     });
 
     // Get all stats for dashboard
-    app.get("/api/stats", requireAuth, async (req: AuthRequest, res) => {
+    app.get("/stats", requireAuth, async (req: AuthRequest, res) => {
       try {
         const tasks = await storage.getTasks(req.userId!);
         const allStats = await Promise.all(
@@ -225,7 +228,7 @@ export async function registerRoutes(app: Express): Promise<void> {
     });
 
     // Journal entries
-    app.get("/api/journal", requireAuth, async (req: AuthRequest, res) => {
+    app.get("/journal", requireAuth, async (req: AuthRequest, res) => {
       try {
         const entries = await storage.getJournalEntries(req.userId!);
         res.json(entries);
@@ -238,7 +241,7 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.post("/api/journal", requireAuth, async (req: AuthRequest, res) => {
+    app.post("/journal", requireAuth, async (req: AuthRequest, res) => {
       try {
         const validated = insertJournalEntrySchema.parse({ ...req.body, userId: req.userId });
         const entry = await storage.createJournalEntry(validated);
@@ -251,7 +254,4 @@ export async function registerRoutes(app: Express): Promise<void> {
         });
       }
     });
-
-    // 💡 REMOVED: const httpServer = createServer(app);
-    // 💡 REMOVED: return httpServer;
 }
