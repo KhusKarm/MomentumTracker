@@ -1,0 +1,62 @@
+12:11:07.892 Running build in Washington, D.C., USA (East) – iad1
+12:11:07.893 Build machine configuration: 2 cores, 8 GB
+12:11:07.902 Cloning github.com/KhusKarm/MomentumTracker (Branch: main, Commit: 385f6b5)
+12:11:07.903 Skipping build cache, deployment was triggered without cache.
+12:11:08.181 Cloning completed: 279.000ms
+12:11:08.215 Found .vercelignore
+12:11:08.220 Removed 27 ignored files defined in .vercelignore
+12:11:08.220   /.git/config
+12:11:08.220   /.git/description
+12:11:08.220   /.git/FETCH_HEAD
+12:11:08.220   /.git/HEAD
+12:11:08.220   /.git/hooks/applypatch-msg.sample
+12:11:08.220   /.git/hooks/commit-msg.sample
+12:11:08.220   /.git/hooks/fsmonitor-watchman.sample
+12:11:08.222   /.git/hooks/post-update.sample
+12:11:08.223   /.git/hooks/pre-applypatch.sample
+12:11:08.223   /.git/hooks/pre-commit.sample
+12:11:08.599 Running "vercel build"
+12:11:08.998 Vercel CLI 48.8.0
+12:11:09.748 Installing dependencies...
+12:11:14.186 npm warn deprecated @esbuild-kit/esm-loader@2.6.5: Merged into tsx: https://tsx.is
+12:11:14.187 npm warn deprecated @esbuild-kit/core-utils@3.3.2: Merged into tsx: https://tsx.is
+12:11:18.750 
+12:11:18.750 added 478 packages in 9s
+12:11:18.750 
+12:11:18.750 64 packages are looking for funding
+12:11:18.750   run `npm fund` for details
+12:11:18.915 
+12:11:18.916 > rest-express@1.0.0 build
+12:11:18.917 > vite build && esbuild server/index.ts --platform=node --packages=external --bundle --format=esm --outdir=dist
+12:11:18.917 
+12:11:19.175 [36mvite v5.4.20 [32mbuilding for production...[36m[39m
+12:11:19.224 transforming...
+12:11:19.470 Browserslist: browsers data (caniuse-lite) is 13 months old. Please run:
+12:11:19.471   npx update-browserslist-db@latest
+12:11:19.471   Why you should do it regularly: https://github.com/browserslist/update-db#readme
+12:11:20.383 
+12:11:20.384 A PostCSS plugin did not pass the `from` option to `postcss.parse`. This may cause imported assets to be incorrectly transformed. If you've recently added a PostCSS plugin that raised this warning, please contact the package author to fix the issue.
+12:11:26.152 [32m✓[39m 2857 modules transformed.
+12:11:26.782 rendering chunks...
+12:11:26.794 computing gzip size...
+12:11:27.182 [2m../dist/public/[22m[32mindex.html                 [39m[1m[2m  1.01 kB[22m[1m[22m[2m │ gzip:   0.54 kB[22m
+12:11:27.182 [2m../dist/public/[22m[2massets/[22m[35mindex-CbVeTCrw.css  [39m[1m[2m 70.24 kB[22m[1m[22m[2m │ gzip:  11.43 kB[22m
+12:11:27.183 [2m../dist/public/[22m[2massets/[22m[36mindex-CURiFk9r.js   [39m[1m[33m836.04 kB[39m[22m[2m │ gzip: 251.29 kB[22m
+12:11:27.183 [33m
+12:11:27.183 (!) Some chunks are larger than 500 kB after minification. Consider:
+12:11:27.184 - Using dynamic import() to code-split the application
+12:11:27.184 - Use build.rollupOptions.output.manualChunks to improve chunking: https://rollupjs.org/configuration-options/#output-manualchunks
+12:11:27.184 - Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.[39m
+12:11:27.184 [32m✓ built in 7.99s[39m
+12:11:27.229 
+12:11:27.229   dist/index.js  14.6kb
+12:11:27.229 
+12:11:27.229 ⚡ Done in 5ms
+12:11:27.498 Using TypeScript 5.6.3 (local user-provided)
+12:11:34.014 Build Completed in /vercel/output [24s]
+12:11:34.233 Deploying outputs...
+12:11:41.709 Deployment completed
+12:11:42.539 Creating build cache...
+12:11:58.702 Created build cache: 16.160s
+12:11:58.702 Uploading build cache [77.48 MB]
+12:11:59.548 Build cache uploaded: 849.193ms
