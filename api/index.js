@@ -10,16 +10,34 @@ import express from "express";
 // shared/schema.ts
 var schema_exports = {};
 __export(schema_exports, {
+  categories: () => categories,
   checkIns: () => checkIns,
+  insertCategorySchema: () => insertCategorySchema,
   insertCheckInSchema: () => insertCheckInSchema,
+  insertJournalEntrySchema: () => insertJournalEntrySchema,
   insertTaskSchema: () => insertTaskSchema,
-  tasks: () => tasks
+  insertUserSchema: () => insertUserSchema,
+  journalEntries: () => journalEntries,
+  tasks: () => tasks,
+  users: () => users
 });
 import { sql } from "drizzle-orm";
 import { pgTable, text, varchar, integer, timestamp, boolean } from "drizzle-orm/pg-core";
 import { createInsertSchema } from "drizzle-zod";
+var users = pgTable("users", {
+  id: varchar("id").primaryKey(),
+  email: text("email").notNull().unique(),
+  createdAt: timestamp("created_at").notNull().default(sql`NOW()`)
+});
+var categories = pgTable("categories", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  name: text("name").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`NOW()`)
+});
 var tasks = pgTable("tasks", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
   name: text("name").notNull(),
   category: text("category").notNull(),
   metricType: text("metric_type").notNull(),
@@ -39,6 +57,7 @@ var tasks = pgTable("tasks", {
 var checkIns = pgTable("check_ins", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
   taskId: varchar("task_id").notNull().references(() => tasks.id),
+  userId: varchar("user_id").notNull().references(() => users.id),
   value: integer("value").notNull(),
   // minutes or count submitted
   wasDefeat: boolean("was_defeat").notNull().default(false),
@@ -46,6 +65,19 @@ var checkIns = pgTable("check_ins", {
   replayGoal: integer("replay_goal"),
   // if this was a replay, what was the goal
   checkedInAt: timestamp("checked_in_at").notNull().default(sql`NOW()`)
+});
+var journalEntries = pgTable("journal_entries", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  userId: varchar("user_id").notNull().references(() => users.id),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").notNull().default(sql`NOW()`)
+});
+var insertUserSchema = createInsertSchema(users).omit({
+  createdAt: true
+});
+var insertCategorySchema = createInsertSchema(categories).omit({
+  id: true,
+  createdAt: true
 });
 var insertTaskSchema = createInsertSchema(tasks).omit({
   id: true,
@@ -60,6 +92,10 @@ var insertTaskSchema = createInsertSchema(tasks).omit({
 var insertCheckInSchema = createInsertSchema(checkIns).omit({
   id: true,
   checkedInAt: true
+});
+var insertJournalEntrySchema = createInsertSchema(journalEntries).omit({
+  id: true,
+  createdAt: true
 });
 
 // server/db.ts
@@ -80,53 +116,96 @@ var db = drizzle({ client: sql2, schema: schema_exports });
 // server/storage.ts
 import { eq, and, gte, desc } from "drizzle-orm";
 var DatabaseStorage = class {
-  // Tasks
-  async getTasks() {
-    return await db.select().from(tasks).where(eq(tasks.isActive, true));
+  // Users
+  async getUser(id) {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user || void 0;
   }
-  async getTask(id) {
-    const [task] = await db.select().from(tasks).where(eq(tasks.id, id));
+  async createUser(insertUser) {
+    const [user] = await db.insert(users).values(insertUser).returning();
+    return user;
+  }
+  async getUserByEmail(email) {
+    const [user] = await db.select().from(users).where(eq(users.email, email));
+    return user || void 0;
+  }
+  // Categories
+  async getCategories(userId) {
+    return await db.select().from(categories).where(eq(categories.userId, userId));
+  }
+  async createCategory(category) {
+    const [newCategory] = await db.insert(categories).values(category).returning();
+    return newCategory;
+  }
+  // Tasks
+  async getTasks(userId) {
+    return await db.select().from(tasks).where(
+      and(eq(tasks.userId, userId), eq(tasks.isActive, true))
+    );
+  }
+  async getTask(id, userId) {
+    const [task] = await db.select().from(tasks).where(
+      and(eq(tasks.id, id), eq(tasks.userId, userId))
+    );
     return task || void 0;
   }
   async createTask(insertTask) {
     const [task] = await db.insert(tasks).values(insertTask).returning();
     return task;
   }
-  async updateTask(id, updates) {
-    const [task] = await db.update(tasks).set(updates).where(eq(tasks.id, id)).returning();
+  async updateTask(id, userId, updates) {
+    const [task] = await db.update(tasks).set(updates).where(and(eq(tasks.id, id), eq(tasks.userId, userId))).returning();
     return task || void 0;
   }
-  async deleteTask(id) {
-    const result = await db.delete(tasks).where(eq(tasks.id, id)).returning();
+  async deleteTask(id, userId) {
+    const result = await db.delete(tasks).where(
+      and(eq(tasks.id, id), eq(tasks.userId, userId))
+    ).returning();
     return result.length > 0;
   }
   // Check-ins
-  async getCheckIns(taskId) {
-    return await db.select().from(checkIns).where(eq(checkIns.taskId, taskId)).orderBy(desc(checkIns.checkedInAt));
+  async getCheckIns(taskId, userId) {
+    return await db.select().from(checkIns).where(and(eq(checkIns.taskId, taskId), eq(checkIns.userId, userId))).orderBy(desc(checkIns.checkedInAt));
   }
   async createCheckIn(insertCheckIn) {
     const [checkIn] = await db.insert(checkIns).values(insertCheckIn).returning();
     return checkIn;
   }
-  async getTodayCheckIns(taskId) {
+  async getTodayCheckIns(taskId, userId) {
     const today = /* @__PURE__ */ new Date();
     today.setHours(0, 0, 0, 0);
     return await db.select().from(checkIns).where(
       and(
         eq(checkIns.taskId, taskId),
+        eq(checkIns.userId, userId),
         gte(checkIns.checkedInAt, today)
       )
     );
   }
+  async getAllCheckIns(userId) {
+    return await db.select().from(checkIns).where(eq(checkIns.userId, userId)).orderBy(desc(checkIns.checkedInAt));
+  }
+  // Journal
+  async getJournalEntries(userId) {
+    return await db.select().from(journalEntries).where(eq(journalEntries.userId, userId)).orderBy(desc(journalEntries.createdAt));
+  }
+  async createJournalEntry(entry) {
+    const [journalEntry] = await db.insert(journalEntries).values(entry).returning();
+    return journalEntry;
+  }
+  async getJournalEntry(id, userId) {
+    const [entry] = await db.select().from(journalEntries).where(and(eq(journalEntries.id, id), eq(journalEntries.userId, userId)));
+    return entry || void 0;
+  }
   // Stats
-  async getTaskStats(taskId) {
+  async getTaskStats(taskId, userId) {
     const today = /* @__PURE__ */ new Date();
     today.setHours(0, 0, 0, 0);
     const weekAgo = new Date(today);
     weekAgo.setDate(weekAgo.getDate() - 7);
     const monthAgo = new Date(today);
     monthAgo.setMonth(monthAgo.getMonth() - 1);
-    const allCheckIns = await this.getCheckIns(taskId);
+    const allCheckIns = await this.getCheckIns(taskId, userId);
     const todayTotal = allCheckIns.filter((c) => c.checkedInAt >= today && !c.wasDefeat).reduce((sum, c) => sum + c.value, 0);
     const weekTotal = allCheckIns.filter((c) => c.checkedInAt >= weekAgo && !c.wasDefeat).reduce((sum, c) => sum + c.value, 0);
     const monthTotal = allCheckIns.filter((c) => c.checkedInAt >= monthAgo && !c.wasDefeat).reduce((sum, c) => sum + c.value, 0);
@@ -138,11 +217,94 @@ var DatabaseStorage = class {
 };
 var storage = new DatabaseStorage();
 
+// server/firebaseAdmin.ts
+import admin from "firebase-admin";
+var app;
+function initializeFirebaseAdmin() {
+  if (app) {
+    return app;
+  }
+  try {
+    app = admin.initializeApp({
+      projectId: process.env.VITE_FIREBASE_PROJECT_ID
+    });
+    console.log("Firebase Admin initialized successfully");
+  } catch (error) {
+    if (error.code === "app/duplicate-app") {
+      app = admin.app();
+    } else {
+      console.error("Firebase Admin initialization error:", error);
+      throw error;
+    }
+  }
+  return app;
+}
+function getAuth() {
+  if (!app) {
+    initializeFirebaseAdmin();
+  }
+  return admin.auth();
+}
+
+// server/middleware/auth.ts
+async function requireAuth(req, res, next) {
+  try {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      return res.status(401).json({ error: "Unauthorized - No token provided" });
+    }
+    const idToken = authHeader.split("Bearer ")[1];
+    if (!idToken) {
+      return res.status(401).json({ error: "Unauthorized - Invalid token format" });
+    }
+    const decodedToken = await getAuth().verifyIdToken(idToken);
+    const userId = decodedToken.uid;
+    const email = decodedToken.email;
+    if (!userId || !email) {
+      return res.status(401).json({ error: "Unauthorized - Invalid token claims" });
+    }
+    let user = await storage.getUser(userId);
+    if (!user) {
+      user = await storage.createUser({ id: userId, email });
+    }
+    req.userId = userId;
+    next();
+  } catch (error) {
+    console.error("Auth middleware error:", error);
+    res.status(401).json({ error: "Unauthorized - Token verification failed" });
+  }
+}
+
 // server/routes.ts
-async function registerRoutes(app) {
-  app.get("/api/tasks", async (req, res) => {
+async function registerRoutes(app2) {
+  app2.get("/api/categories", requireAuth, async (req, res) => {
     try {
-      const tasks2 = await storage.getTasks();
+      const categories2 = await storage.getCategories(req.userId);
+      res.json(categories2);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      res.status(500).json({
+        error: "Failed to fetch categories",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  app2.post("/api/categories", requireAuth, async (req, res) => {
+    try {
+      const validated = insertCategorySchema.parse({ ...req.body, userId: req.userId });
+      const category = await storage.createCategory(validated);
+      res.status(201).json(category);
+    } catch (error) {
+      console.error("Error creating category:", error);
+      res.status(400).json({
+        error: "Invalid category data",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  app2.get("/api/tasks", requireAuth, async (req, res) => {
+    try {
+      const tasks2 = await storage.getTasks(req.userId);
       res.json(tasks2);
     } catch (error) {
       console.error("Error fetching tasks:", error);
@@ -152,9 +314,9 @@ async function registerRoutes(app) {
       });
     }
   });
-  app.get("/api/tasks/:id", async (req, res) => {
+  app2.get("/api/tasks/:id", requireAuth, async (req, res) => {
     try {
-      const task = await storage.getTask(req.params.id);
+      const task = await storage.getTask(req.params.id, req.userId);
       if (!task) {
         return res.status(404).json({ error: "Task not found" });
       }
@@ -167,9 +329,9 @@ async function registerRoutes(app) {
       });
     }
   });
-  app.post("/api/tasks", async (req, res) => {
+  app2.post("/api/tasks", requireAuth, async (req, res) => {
     try {
-      const validated = insertTaskSchema.parse(req.body);
+      const validated = insertTaskSchema.parse({ ...req.body, userId: req.userId });
       const task = await storage.createTask(validated);
       res.status(201).json(task);
     } catch (error) {
@@ -180,9 +342,9 @@ async function registerRoutes(app) {
       });
     }
   });
-  app.patch("/api/tasks/:id", async (req, res) => {
+  app2.patch("/api/tasks/:id", requireAuth, async (req, res) => {
     try {
-      const task = await storage.updateTask(req.params.id, req.body);
+      const task = await storage.updateTask(req.params.id, req.userId, req.body);
       if (!task) {
         return res.status(404).json({ error: "Task not found" });
       }
@@ -195,9 +357,9 @@ async function registerRoutes(app) {
       });
     }
   });
-  app.delete("/api/tasks/:id", async (req, res) => {
+  app2.delete("/api/tasks/:id", requireAuth, async (req, res) => {
     try {
-      const success = await storage.deleteTask(req.params.id);
+      const success = await storage.deleteTask(req.params.id, req.userId);
       if (!success) {
         return res.status(404).json({ error: "Task not found" });
       }
@@ -210,11 +372,11 @@ async function registerRoutes(app) {
       });
     }
   });
-  app.post("/api/check-ins", async (req, res) => {
+  app2.post("/api/check-ins", requireAuth, async (req, res) => {
     try {
-      const validated = insertCheckInSchema.parse(req.body);
+      const validated = insertCheckInSchema.parse({ ...req.body, userId: req.userId });
       const checkIn = await storage.createCheckIn(validated);
-      const task = await storage.getTask(validated.taskId);
+      const task = await storage.getTask(validated.taskId, req.userId);
       if (task) {
         const updates = {
           nextCheckinAt: new Date(Date.now() + task.intervalMinutes * 60 * 1e3)
@@ -230,7 +392,7 @@ async function registerRoutes(app) {
             updates.originalTarget = null;
           }
         }
-        await storage.updateTask(validated.taskId, updates);
+        await storage.updateTask(validated.taskId, req.userId, updates);
       }
       res.status(201).json(checkIn);
     } catch (error) {
@@ -241,9 +403,9 @@ async function registerRoutes(app) {
       });
     }
   });
-  app.get("/api/tasks/:id/check-ins", async (req, res) => {
+  app2.get("/api/tasks/:id/check-ins", requireAuth, async (req, res) => {
     try {
-      const checkIns2 = await storage.getCheckIns(req.params.id);
+      const checkIns2 = await storage.getCheckIns(req.params.id, req.userId);
       res.json(checkIns2);
     } catch (error) {
       console.error("Error fetching check-ins:", error);
@@ -253,9 +415,21 @@ async function registerRoutes(app) {
       });
     }
   });
-  app.get("/api/tasks/:id/stats", async (req, res) => {
+  app2.get("/api/check-ins/all", requireAuth, async (req, res) => {
     try {
-      const stats = await storage.getTaskStats(req.params.id);
+      const checkIns2 = await storage.getAllCheckIns(req.userId);
+      res.json(checkIns2);
+    } catch (error) {
+      console.error("Error fetching all check-ins:", error);
+      res.status(500).json({
+        error: "Failed to fetch all check-ins",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  app2.get("/api/tasks/:id/stats", requireAuth, async (req, res) => {
+    try {
+      const stats = await storage.getTaskStats(req.params.id, req.userId);
       res.json(stats);
     } catch (error) {
       console.error("Error fetching task stats:", error);
@@ -265,14 +439,14 @@ async function registerRoutes(app) {
       });
     }
   });
-  app.get("/api/stats", async (req, res) => {
+  app2.get("/api/stats", requireAuth, async (req, res) => {
     try {
-      const tasks2 = await storage.getTasks();
+      const tasks2 = await storage.getTasks(req.userId);
       const allStats = await Promise.all(
         tasks2.map(async (task) => ({
           taskId: task.id,
           taskName: task.name,
-          ...await storage.getTaskStats(task.id)
+          ...await storage.getTaskStats(task.id, req.userId)
         }))
       );
       const totalCheckInsCount = allStats.reduce((sum, s) => {
@@ -293,6 +467,31 @@ async function registerRoutes(app) {
       });
     }
   });
+  app2.get("/api/journal", requireAuth, async (req, res) => {
+    try {
+      const entries = await storage.getJournalEntries(req.userId);
+      res.json(entries);
+    } catch (error) {
+      console.error("Error fetching journal entries:", error);
+      res.status(500).json({
+        error: "Failed to fetch journal entries",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
+  app2.post("/api/journal", requireAuth, async (req, res) => {
+    try {
+      const validated = insertJournalEntrySchema.parse({ ...req.body, userId: req.userId });
+      const entry = await storage.createJournalEntry(validated);
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error("Error creating journal entry:", error);
+      res.status(400).json({
+        error: "Invalid journal entry data",
+        details: error instanceof Error ? error.message : String(error)
+      });
+    }
+  });
 }
 
 // server/api-handler/index.ts
@@ -301,26 +500,26 @@ async function initializeApp() {
   if (cachedApp) {
     return cachedApp;
   }
-  const app = express();
-  app.use(express.json());
-  app.use(express.urlencoded({ extended: false }));
-  app.use((req, res, next) => {
+  const app2 = express();
+  app2.use(express.json());
+  app2.use(express.urlencoded({ extended: false }));
+  app2.use((req, res, next) => {
     next();
   });
-  await registerRoutes(app);
-  app.use((err, _req, res, _next) => {
+  await registerRoutes(app2);
+  app2.use((err, _req, res, _next) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
     res.status(status).json({ message });
     console.error(err);
   });
-  cachedApp = app;
-  return app;
+  cachedApp = app2;
+  return app2;
 }
 var index_default = async (req, res) => {
   try {
-    const app = await initializeApp();
-    app(req, res);
+    const app2 = await initializeApp();
+    app2(req, res);
   } catch (error) {
     console.error("Initialization Failed:", error);
     res.status(500).send("Server initialization failed.");
