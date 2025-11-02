@@ -1,14 +1,41 @@
 import type { Express } from "express";
 import { storage } from "./storage";
-import { insertTaskSchema, insertCheckInSchema } from "@shared/schema";
+import { insertTaskSchema, insertCheckInSchema, insertCategorySchema, insertJournalEntrySchema } from "@shared/schema";
+import { requireAuth, type AuthRequest } from "./middleware/auth";
 
-// 💡 CHANGE 1: Function signature updated to return void (or Promise<void>)
-// It now only takes the Express app instance and registers the routes.
 export async function registerRoutes(app: Express): Promise<void> {
-    // Tasks CRUD
-    app.get("/api/tasks", async (req, res) => {
+    // Categories
+    app.get("/api/categories", requireAuth, async (req: AuthRequest, res) => {
       try {
-        const tasks = await storage.getTasks();
+        const categories = await storage.getCategories(req.userId!);
+        res.json(categories);
+      } catch (error) {
+        console.error("Error fetching categories:", error);
+        res.status(500).json({ 
+          error: "Failed to fetch categories",
+          details: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+
+    app.post("/api/categories", requireAuth, async (req: AuthRequest, res) => {
+      try {
+        const validated = insertCategorySchema.parse({ ...req.body, userId: req.userId });
+        const category = await storage.createCategory(validated);
+        res.status(201).json(category);
+      } catch (error) {
+        console.error("Error creating category:", error);
+        res.status(400).json({ 
+          error: "Invalid category data",
+          details: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+
+    // Tasks CRUD
+    app.get("/api/tasks", requireAuth, async (req: AuthRequest, res) => {
+      try {
+        const tasks = await storage.getTasks(req.userId!);
         res.json(tasks);
       } catch (error) {
         console.error("Error fetching tasks:", error);
@@ -19,9 +46,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.get("/api/tasks/:id", async (req, res) => {
+    app.get("/api/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
       try {
-        const task = await storage.getTask(req.params.id);
+        const task = await storage.getTask(req.params.id, req.userId!);
         if (!task) {
           return res.status(404).json({ error: "Task not found" });
         }
@@ -35,9 +62,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.post("/api/tasks", async (req, res) => {
+    app.post("/api/tasks", requireAuth, async (req: AuthRequest, res) => {
       try {
-        const validated = insertTaskSchema.parse(req.body);
+        const validated = insertTaskSchema.parse({ ...req.body, userId: req.userId });
         const task = await storage.createTask(validated);
         res.status(201).json(task);
       } catch (error) {
@@ -49,9 +76,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.patch("/api/tasks/:id", async (req, res) => {
+    app.patch("/api/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
       try {
-        const task = await storage.updateTask(req.params.id, req.body);
+        const task = await storage.updateTask(req.params.id, req.userId!, req.body);
         if (!task) {
           return res.status(404).json({ error: "Task not found" });
         }
@@ -65,9 +92,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.delete("/api/tasks/:id", async (req, res) => {
+    app.delete("/api/tasks/:id", requireAuth, async (req: AuthRequest, res) => {
       try {
-        const success = await storage.deleteTask(req.params.id);
+        const success = await storage.deleteTask(req.params.id, req.userId!);
         if (!success) {
           return res.status(404).json({ error: "Task not found" });
         }
@@ -82,26 +109,23 @@ export async function registerRoutes(app: Express): Promise<void> {
     });
 
     // Check-ins
-    app.post("/api/check-ins", async (req, res) => {
+    app.post("/api/check-ins", requireAuth, async (req: AuthRequest, res) => {
       try {
-        const validated = insertCheckInSchema.parse(req.body);
+        const validated = insertCheckInSchema.parse({ ...req.body, userId: req.userId });
         const checkIn = await storage.createCheckIn(validated);
         
         // Update task based on check-in result
-        const task = await storage.getTask(validated.taskId);
+        const task = await storage.getTask(validated.taskId, req.userId!);
         if (task) {
           const updates: any = {
             nextCheckinAt: new Date(Date.now() + task.intervalMinutes * 60 * 1000)
           };
           
           if (validated.wasDefeat) {
-            // Defeat - streak resets to 0
             updates.streak = 0;
           } else {
-            // Success - increment streak and handle replay mode exit
             updates.streak = task.streak + 1;
             
-            // If this was a successful replay, restore original target and exit replay mode
             if (validated.wasReplay && task.isInReplayMode && task.originalTarget) {
               updates.target = task.originalTarget;
               updates.isInReplayMode = false;
@@ -110,7 +134,7 @@ export async function registerRoutes(app: Express): Promise<void> {
             }
           }
           
-          await storage.updateTask(validated.taskId, updates);
+          await storage.updateTask(validated.taskId, req.userId!, updates);
         }
         
         res.status(201).json(checkIn);
@@ -123,9 +147,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.get("/api/tasks/:id/check-ins", async (req, res) => {
+    app.get("/api/tasks/:id/check-ins", requireAuth, async (req: AuthRequest, res) => {
       try {
-        const checkIns = await storage.getCheckIns(req.params.id);
+        const checkIns = await storage.getCheckIns(req.params.id, req.userId!);
         res.json(checkIns);
       } catch (error) {
         console.error("Error fetching check-ins:", error);
@@ -136,9 +160,9 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
-    app.get("/api/tasks/:id/stats", async (req, res) => {
+    app.get("/api/tasks/:id/stats", requireAuth, async (req: AuthRequest, res) => {
       try {
-        const stats = await storage.getTaskStats(req.params.id);
+        const stats = await storage.getTaskStats(req.params.id, req.userId!);
         res.json(stats);
       } catch (error) {
         console.error("Error fetching task stats:", error);
@@ -150,18 +174,17 @@ export async function registerRoutes(app: Express): Promise<void> {
     });
 
     // Get all stats for dashboard
-    app.get("/api/stats", async (req, res) => {
+    app.get("/api/stats", requireAuth, async (req: AuthRequest, res) => {
       try {
-        const tasks = await storage.getTasks();
+        const tasks = await storage.getTasks(req.userId!);
         const allStats = await Promise.all(
           tasks.map(async (task) => ({
             taskId: task.id,
             taskName: task.name,
-            ...(await storage.getTaskStats(task.id))
+            ...(await storage.getTaskStats(task.id, req.userId!))
           }))
         );
         
-        // Calculate overall momentum score and replay success rate
         const totalCheckInsCount = allStats.reduce((sum, s) => {
           return sum + (s.todayTotal > 0 ? 1 : 0);
         }, 0);
@@ -183,6 +206,34 @@ export async function registerRoutes(app: Express): Promise<void> {
         console.error("Error fetching global stats:", error);
         res.status(500).json({ 
           error: "Failed to fetch stats",
+          details: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+
+    // Journal entries
+    app.get("/api/journal", requireAuth, async (req: AuthRequest, res) => {
+      try {
+        const entries = await storage.getJournalEntries(req.userId!);
+        res.json(entries);
+      } catch (error) {
+        console.error("Error fetching journal entries:", error);
+        res.status(500).json({ 
+          error: "Failed to fetch journal entries",
+          details: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+
+    app.post("/api/journal", requireAuth, async (req: AuthRequest, res) => {
+      try {
+        const validated = insertJournalEntrySchema.parse({ ...req.body, userId: req.userId });
+        const entry = await storage.createJournalEntry(validated);
+        res.status(201).json(entry);
+      } catch (error) {
+        console.error("Error creating journal entry:", error);
+        res.status(400).json({ 
+          error: "Invalid journal entry data",
           details: error instanceof Error ? error.message : String(error)
         });
       }

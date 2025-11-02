@@ -1,4 +1,6 @@
 import { useState } from "react";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,7 +12,8 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Card } from "@/components/ui/card";
-import { Clock, Hash } from "lucide-react";
+import { Clock, Hash, Plus } from "lucide-react";
+import type { Category } from "@shared/schema";
 
 interface CreateTaskFormProps {
   onSubmit: (task: {
@@ -26,22 +29,47 @@ interface CreateTaskFormProps {
 export default function CreateTaskForm({ onSubmit, onCancel }: CreateTaskFormProps) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState("");
+  const [customCategory, setCustomCategory] = useState("");
+  const [showCustomCategory, setShowCustomCategory] = useState(false);
   const [metricType, setMetricType] = useState<"duration" | "count">("duration");
   const [target, setTarget] = useState("");
   const [interval, setInterval] = useState("60");
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const { data: categories = [] } = useQuery<Category[]>({
+    queryKey: ["/api/categories"],
+  });
+
+  const createCategoryMutation = useMutation({
+    mutationFn: async (name: string) => {
+      return apiRequest("POST", "/api/categories", { name });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/categories"] });
+    },
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    let finalCategory = category;
+    
+    if (showCustomCategory && customCategory.trim()) {
+      await createCategoryMutation.mutateAsync(customCategory.trim());
+      finalCategory = customCategory.trim();
+    }
+    
     onSubmit({
       name,
-      category,
+      category: finalCategory,
       metricType,
       target: parseInt(target),
       interval: parseInt(interval),
     });
     setName("");
     setCategory("");
+    setCustomCategory("");
     setTarget("");
+    setShowCustomCategory(false);
   };
 
   const intervalOptions = [
@@ -73,15 +101,52 @@ export default function CreateTaskForm({ onSubmit, onCancel }: CreateTaskFormPro
         </div>
 
         <div className="space-y-2">
-          <Label htmlFor="category">Category</Label>
-          <Input
-            id="category"
-            placeholder="e.g., Exercise, Study, Personal"
-            value={category}
-            onChange={(e) => setCategory(e.target.value)}
-            required
-            data-testid="input-category"
-          />
+          <div className="flex items-center justify-between">
+            <Label htmlFor="category">Category</Label>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowCustomCategory(!showCustomCategory)}
+              data-testid="button-toggle-custom-category"
+            >
+              <Plus className="h-4 w-4 mr-1" />
+              {showCustomCategory ? "Select Existing" : "New Category"}
+            </Button>
+          </div>
+          
+          {showCustomCategory ? (
+            <Input
+              id="custom-category"
+              placeholder="Enter new category name"
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              required
+              data-testid="input-custom-category"
+            />
+          ) : categories.length > 0 ? (
+            <Select value={category} onValueChange={setCategory} required>
+              <SelectTrigger id="category" data-testid="select-category">
+                <SelectValue placeholder="Select a category" />
+              </SelectTrigger>
+              <SelectContent>
+                {categories.map((cat) => (
+                  <SelectItem key={cat.id} value={cat.name}>
+                    {cat.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          ) : (
+            <Input
+              id="category"
+              placeholder="e.g., Exercise, Study, Personal"
+              value={customCategory}
+              onChange={(e) => setCustomCategory(e.target.value)}
+              required
+              data-testid="input-category"
+            />
+          )}
         </div>
 
         <div className="space-y-2">

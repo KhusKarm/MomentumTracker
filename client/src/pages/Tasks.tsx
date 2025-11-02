@@ -4,8 +4,8 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import TaskCard from "@/components/TaskCard";
 import CreateTaskForm from "@/components/CreateTaskForm";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import { motion } from "framer-motion";
+import { Plus, ChevronDown, ChevronRight } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { useToast } from "@/hooks/use-toast";
 import type { Task } from "@shared/schema";
 
@@ -38,10 +38,34 @@ function TaskCardWithStats({ task, index }: { task: Task; index: number }) {
 export default function Tasks() {
   const { toast } = useToast();
   const [showCreateForm, setShowCreateForm] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   const { data: tasks = [], isLoading } = useQuery<Task[]>({ 
     queryKey: ["/api/tasks"] 
   });
+
+  const tasksByCategory = tasks.reduce((acc, task) => {
+    const category = task.category || "Uncategorized";
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(task);
+    return acc;
+  }, {} as Record<string, Task[]>);
+
+  const categories = Object.keys(tasksByCategory).sort();
+
+  const toggleCategory = (category: string) => {
+    setExpandedCategories((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(category)) {
+        newSet.delete(category);
+      } else {
+        newSet.add(category);
+      }
+      return newSet;
+    });
+  };
 
   const createTaskMutation = useMutation({
     mutationFn: async (taskData: any) => {
@@ -121,16 +145,52 @@ export default function Tasks() {
             </p>
           </div>
         ) : (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 0.1 }}
-            className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
-          >
-            {tasks.map((task, index) => (
-              <TaskCardWithStats key={task.id} task={task} index={index} />
-            ))}
-          </motion.div>
+          <div className="space-y-6">
+            {categories.map((category) => {
+              const isExpanded = expandedCategories.has(category);
+              const categoryTasks = tasksByCategory[category];
+              
+              return (
+                <div key={category} className="space-y-3">
+                  <button
+                    onClick={() => toggleCategory(category)}
+                    className="flex items-center gap-2 w-full group"
+                    data-testid={`button-category-${category.toLowerCase()}`}
+                  >
+                    {isExpanded ? (
+                      <ChevronDown className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    ) : (
+                      <ChevronRight className="h-5 w-5 text-muted-foreground group-hover:text-foreground transition-colors" />
+                    )}
+                    <h2 className="text-2xl font-bold text-foreground group-hover:text-primary transition-colors">
+                      {category}
+                    </h2>
+                    <span className="text-sm text-muted-foreground">
+                      ({categoryTasks.length})
+                    </span>
+                  </button>
+                  
+                  <AnimatePresence>
+                    {isExpanded && (
+                      <motion.div
+                        initial={{ opacity: 0, height: 0 }}
+                        animate={{ opacity: 1, height: "auto" }}
+                        exit={{ opacity: 0, height: 0 }}
+                        transition={{ duration: 0.2 }}
+                        className="overflow-hidden"
+                      >
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-2">
+                          {categoryTasks.map((task, index) => (
+                            <TaskCardWithStats key={task.id} task={task} index={index} />
+                          ))}
+                        </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
+          </div>
         )}
       </div>
     </div>
