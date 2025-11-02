@@ -71,7 +71,13 @@ Your deployment was failing because of **THREE separate issues**:
 !api/index.js
 ```
 
-This ensures the compiled function is deployed to Vercel.
+✅ Updated `.vercelignore` to ignore the TypeScript source file:
+
+```
+api/index.ts
+```
+
+This ensures only the compiled JavaScript function is deployed to Vercel.
 
 ### Fix #5: Database Connection Optimization (DONE)
 

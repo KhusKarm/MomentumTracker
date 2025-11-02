@@ -10,3 +10,4 @@ migrations
 drizzle
 .gitignore
 README.md
+api/index.ts
