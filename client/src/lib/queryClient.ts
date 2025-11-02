@@ -11,10 +11,17 @@ async function throwIfResNotOk(res: Response) {
 async function getAuthHeaders(): Promise<Record<string, string>> {
   const user = auth.currentUser;
   if (user) {
-    return {
-      "x-user-id": user.uid,
-      "x-user-email": user.email || "",
-    };
+    try {
+      const token = await user.getIdToken();
+      return {
+        "Authorization": `Bearer ${token}`,
+        "x-user-id": user.uid,
+        "x-user-email": user.email || "",
+      };
+    } catch (error) {
+      console.error("Error getting auth token:", error);
+      return {};
+    }
   }
   return {};
 }

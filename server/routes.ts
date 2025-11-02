@@ -160,6 +160,19 @@ export async function registerRoutes(app: Express): Promise<void> {
       }
     });
 
+    app.get("/api/check-ins/all", requireAuth, async (req: AuthRequest, res) => {
+      try {
+        const checkIns = await storage.getAllCheckIns(req.userId!);
+        res.json(checkIns);
+      } catch (error) {
+        console.error("Error fetching all check-ins:", error);
+        res.status(500).json({ 
+          error: "Failed to fetch all check-ins",
+          details: error instanceof Error ? error.message : String(error)
+        });
+      }
+    });
+
     app.get("/api/tasks/:id/stats", requireAuth, async (req: AuthRequest, res) => {
       try {
         const stats = await storage.getTaskStats(req.params.id, req.userId!);

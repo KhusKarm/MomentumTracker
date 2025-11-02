@@ -7,11 +7,13 @@ import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Dashboard from "@/pages/Dashboard";
 import Tasks from "@/pages/Tasks";
 import Stats from "@/pages/Stats";
+import Journal from "@/pages/Journal";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
-import { LayoutDashboard, ListTodo, BarChart3, LogOut } from "lucide-react";
+import { LayoutDashboard, ListTodo, BarChart3, BookOpen, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
+import MusicPlayer from "@/components/MusicPlayer";
 
 function PrivateRoute({ component: Component }: { component: () => JSX.Element }) {
   const { currentUser } = useAuth();
@@ -31,6 +33,7 @@ function Navigation() {
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
     { path: "/tasks", label: "Tasks", icon: ListTodo },
     { path: "/stats", label: "Stats", icon: BarChart3 },
+    { path: "/journal", label: "Journal", icon: BookOpen },
   ];
 
   const handleLogout = async () => {
@@ -79,6 +82,11 @@ function Navigation() {
                 </Link>
               );
             })}
+            
+            <div className="flex items-center gap-2 ml-4 pl-4 border-l border-border">
+              <MusicPlayer />
+            </div>
+            
             <Button
               variant="ghost"
               size="sm"
@@ -109,6 +117,9 @@ function Router() {
       </Route>
       <Route path="/stats">
         <PrivateRoute component={Stats} />
+      </Route>
+      <Route path="/journal">
+        <PrivateRoute component={Journal} />
       </Route>
       <Route>
         <div className="min-h-screen bg-background flex items-center justify-center">
