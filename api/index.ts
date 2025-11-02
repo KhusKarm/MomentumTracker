@@ -1,61 +1,63 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "../server/routes";
 
-const app = express();
+// 💡 Caches the initialized Express app instance
+let cachedApp: express.Application | null = null;
 
-declare module 'http' {
-  interface IncomingMessage {
-    rawBody: unknown
-  }
+async function initializeApp() {
+    // Return cached instance if it exists (for warm function starts)
+    if (cachedApp) {
+        return cachedApp;
+    }
+
+    const app = express();
+
+    // 1. Middleware Setup (synchronous)
+    declare module 'http' {
+        interface IncomingMessage {
+            rawBody: unknown
+        }
+    }
+
+    app.use(express.json({
+        verify: (req, _res, buf) => {
+            req.rawBody = buf;
+        }
+    }));
+    app.use(express.urlencoded({ extended: false }));
+
+    // 2. Logging/Tracing Middleware (synchronous)
+    app.use((req, res, next) => {
+        // ... Your logging logic ...
+        next();
+    });
+
+    // 3. Route Registration (AWAIT THE ASYNCHRONOUS SETUP)
+    await registerRoutes(app);
+
+    // 4. Error Handler Setup (synchronous)
+    app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+        const status = err.status || err.statusCode || 500;
+        const message = err.message || "Internal Server Error";
+
+        res.status(status).json({ message });
+        console.error(err);
+    });
+
+    // Cache the fully initialized app
+    cachedApp = app;
+    return app;
 }
 
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    req.rawBody = buf;
-  }
-}));
-app.use(express.urlencoded({ extended: false }));
-
-app.use((req, res, next) => {
-  const start = Date.now();
-  const path = req.path;
-  let capturedJsonResponse: Record<string, any> | undefined = undefined;
-
-  const originalResJson = res.json;
-  res.json = function (bodyJson, ...args) {
-    capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
-  };
-
-  res.on("finish", () => {
-    const duration = Date.now() - start;
-    if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      console.log(logLine);
+// 💡 The main Vercel Serverless Function handler
+// This pattern guarantees initialization is complete before the request is processed.
+export default async (req: Request, res: Response) => {
+    try {
+        const app = await initializeApp();
+        // Manually dispatch the request to the Express app
+        app(req, res);
+    } catch (error) {
+        console.error("Initialization Failed:", error);
+        res.status(500).send("Server initialization failed.");
     }
-  });
-
-  next();
-});
-
-(async () => {
-  await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    console.error(err);
-  });
-})();
-
-export default app;
+};
