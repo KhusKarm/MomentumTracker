@@ -84,15 +84,25 @@ Your Momentum app is now ready to deploy to Vercel! The application has been ful
 
 ## Troubleshooting
 
-### If the API doesn't respond:
-- Check that `DATABASE_URL` is set in Vercel environment variables
-- Verify the deployment logs in Vercel dashboard
-- Ensure your Neon database allows connections from Vercel's IP range (usually enabled by default)
+### If the frontend doesn't load:
+- **Issue**: White screen or "Failed to load module" errors
+- **Cause**: vercel.json routing was rewriting asset requests
+- **Fix**: ✅ ALREADY FIXED - Updated vercel.json to use rewrites instead of routes
+- **Verify**: Check browser DevTools Network tab - you should see `/assets/*.js` and `/assets/*.css` loading with 200 status
 
-### If the frontend loads but API fails:
-- Check browser console for CORS errors
-- Verify API routes are prefixed with `/api/`
-- Check Vercel function logs for errors
+### If the API doesn't respond:
+- **Check DATABASE_URL**: Ensure it's set in Vercel Environment Variables
+  - Go to Project Settings → Environment Variables
+  - Verify the connection string matches your Neon database
+- **Check Function Logs**: Go to Deployments → Your deployment → Functions
+  - Look for errors in the `/api/index.ts` function logs
+- **Verify Database**: Ensure your Neon database allows connections (default: enabled)
+
+### If tasks won't create:
+- **Check Browser Console**: Look for API request errors (Network tab)
+- **Verify API Route**: Requests should go to `https://your-app.vercel.app/api/tasks`
+- **Check Function Logs**: See if the serverless function is receiving requests
+- **Database Connection**: Ensure DATABASE_URL is correct and database is accessible
 
 ## Post-Deployment
 
