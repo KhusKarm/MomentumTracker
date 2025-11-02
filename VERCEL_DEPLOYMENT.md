@@ -1,13 +1,15 @@
 # Deploying Momentum to Vercel
 
-Your Momentum app is now ready to deploy to Vercel! The application has been adapted to work in serverless environments.
+Your Momentum app is now ready to deploy to Vercel! The application has been fully optimized for serverless deployment.
 
 ## Changes Made
 
-✅ **Database Connection**: Switched from WebSocket to HTTP driver (serverless-compatible)
-✅ **API Handler**: Created serverless function wrapper for Express backend
-✅ **Configuration**: Added `vercel.json` with proper routing
-✅ **Build Process**: Verified build outputs to `dist/public`
+✅ **Database Connection**: Uses Neon HTTP driver (serverless-compatible)
+✅ **API Handler**: Created optimized serverless function wrapper at `api/index.ts`
+✅ **Configuration**: Updated `vercel.json` with proper routing
+✅ **Build Process**: Configured to output to `dist/public`
+✅ **TypeScript Errors**: Fixed all compilation issues
+✅ **Environment Variables**: Set up proper environment configuration
 
 ## Deployment Steps
 
@@ -20,17 +22,30 @@ Your Momentum app is now ready to deploy to Vercel! The application has been ada
 2. **Connect Your Repository**
    - Click "New Project"
    - Import your repository
-   - Vercel will auto-detect the configuration
+   - Vercel will auto-detect the configuration from `vercel.json`
 
-3. **Configure Environment Variables**
-   - In project settings, add:
-     - `DATABASE_URL` - Your Neon PostgreSQL connection string
-   - Get your DATABASE_URL from Replit secrets or Neon dashboard
+3. **Configure Environment Variables** ⚠️ IMPORTANT
+   - In project settings → Environment Variables, add:
+     - **Variable Name**: `DATABASE_URL`
+     - **Value**: Your Neon PostgreSQL connection string
+       ```
+       postgresql://neondb_owner:npg_SnZuqQOFTi67@ep-mute-forest-abftep9v.eu-west-2.aws.neon.tech/neondb?sslmode=require
+       ```
+   - Add it for all environments (Production, Preview, Development)
 
 4. **Deploy**
    - Click "Deploy"
-   - Vercel will build and deploy your app
+   - Vercel will:
+     - Run `npm run build` to build the frontend
+     - Deploy the API handler from `api/index.ts`
+     - Serve the frontend from `dist/public`
    - You'll get a live URL (e.g., `momentum-tracker.vercel.app`)
+
+5. **Verify Deployment**
+   - Visit your deployed URL
+   - Check that the frontend loads
+   - Try creating a task to verify the backend API is working
+   - Check Vercel Function Logs if you encounter any errors
 
 ### Option 2: Deploy via Vercel CLI
 
