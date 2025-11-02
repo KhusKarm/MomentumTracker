@@ -4,7 +4,7 @@ var __export = (target, all) => {
     __defProp(target, name, { get: all[name], enumerable: true });
 };
 
-// api/index.ts
+// server/api-handler/index.ts
 import express from "express";
 
 // shared/schema.ts
@@ -295,7 +295,7 @@ async function registerRoutes(app) {
   });
 }
 
-// api/index.ts
+// server/api-handler/index.ts
 var cachedApp = null;
 async function initializeApp() {
   if (cachedApp) {

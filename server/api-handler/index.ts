@@ -1,5 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
-import { registerRoutes } from "../server/routes";
+import { registerRoutes } from "../routes";
 
 // 💡 Caches the initialized Express app instance
 let cachedApp: express.Application | null = null;
