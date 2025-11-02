@@ -2,10 +2,18 @@
   "version": 2,
   "buildCommand": "npm run build",
   "outputDirectory": "dist/public",
+  // 💡 NEW: This block tells Vercel to build api/index.ts as a serverless function
+  "builds": [
+    {
+      "src": "api/index.ts",
+      "use": "@vercel/node"
+    }
+  ],
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "/api/index.ts"
+      "destination": "/api/index.ts" 
+      // This is correct if api/index.ts is your single Express wrapper that handles all internal routing.
     }
   ],
   "cleanUrls": true,
