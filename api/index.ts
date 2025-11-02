@@ -13,17 +13,7 @@ async function initializeApp() {
     const app = express();
 
     // 1. Middleware Setup (synchronous)
-    declare module 'http' {
-        interface IncomingMessage {
-            rawBody: unknown
-        }
-    }
-
-    app.use(express.json({
-        verify: (req, _res, buf) => {
-            req.rawBody = buf;
-        }
-    }));
+    app.use(express.json());
     app.use(express.urlencoded({ extended: false }));
 
     // 2. Logging/Tracing Middleware (synchronous)
