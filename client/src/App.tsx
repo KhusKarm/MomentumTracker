@@ -1,22 +1,41 @@
-import { Switch, Route, Link, useLocation } from "wouter";
+import { Switch, Route, Link, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import Dashboard from "@/pages/Dashboard";
 import Tasks from "@/pages/Tasks";
 import Stats from "@/pages/Stats";
-import { LayoutDashboard, ListTodo, BarChart3 } from "lucide-react";
+import Login from "@/pages/Login";
+import Signup from "@/pages/Signup";
+import { LayoutDashboard, ListTodo, BarChart3, LogOut } from "lucide-react";
 import { motion } from "framer-motion";
+import { Button } from "@/components/ui/button";
+
+function PrivateRoute({ component: Component }: { component: () => JSX.Element }) {
+  const { currentUser } = useAuth();
+  
+  if (!currentUser) {
+    return <Redirect to="/login" />;
+  }
+  
+  return <Component />;
+}
 
 function Navigation() {
   const [location] = useLocation();
+  const { logout } = useAuth();
 
   const navItems = [
     { path: "/", label: "Dashboard", icon: LayoutDashboard },
     { path: "/tasks", label: "Tasks", icon: ListTodo },
     { path: "/stats", label: "Stats", icon: BarChart3 },
   ];
+
+  const handleLogout = async () => {
+    await logout();
+  };
 
   return (
     <nav className="border-b border-border bg-card sticky top-0 z-50">
@@ -29,7 +48,7 @@ function Navigation() {
             <span className="font-bold text-lg text-foreground">Momentum</span>
           </div>
           
-          <div className="flex gap-1">
+          <div className="flex items-center gap-1">
             {navItems.map((item) => {
               const Icon = item.icon;
               const isActive = location === item.path;
@@ -60,6 +79,16 @@ function Navigation() {
                 </Link>
               );
             })}
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={handleLogout}
+              className="ml-2"
+              data-testid="button-logout"
+            >
+              <LogOut className="h-4 w-4" />
+              <span className="hidden sm:inline ml-2">Logout</span>
+            </Button>
           </div>
         </div>
       </div>
@@ -70,9 +99,17 @@ function Navigation() {
 function Router() {
   return (
     <Switch>
-      <Route path="/" component={Dashboard} />
-      <Route path="/tasks" component={Tasks} />
-      <Route path="/stats" component={Stats} />
+      <Route path="/login" component={Login} />
+      <Route path="/signup" component={Signup} />
+      <Route path="/">
+        <PrivateRoute component={Dashboard} />
+      </Route>
+      <Route path="/tasks">
+        <PrivateRoute component={Tasks} />
+      </Route>
+      <Route path="/stats">
+        <PrivateRoute component={Stats} />
+      </Route>
       <Route>
         <div className="min-h-screen bg-background flex items-center justify-center">
           <div className="text-center">
@@ -90,15 +127,28 @@ function Router() {
   );
 }
 
+function AuthenticatedApp() {
+  const { currentUser } = useAuth();
+  const [location] = useLocation();
+  
+  const isAuthPage = location === '/login' || location === '/signup';
+  
+  return (
+    <div className="min-h-screen bg-background">
+      {currentUser && !isAuthPage && <Navigation />}
+      <Router />
+    </div>
+  );
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <div className="min-h-screen bg-background">
-          <Navigation />
-          <Router />
-        </div>
-        <Toaster />
+        <AuthProvider>
+          <AuthenticatedApp />
+          <Toaster />
+        </AuthProvider>
       </TooltipProvider>
     </QueryClientProvider>
   );
