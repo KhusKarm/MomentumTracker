@@ -29,7 +29,7 @@ Your Momentum app is now ready to deploy to Vercel! The application has been ful
      - **Variable Name**: `DATABASE_URL`
      - **Value**: Your Neon PostgreSQL connection string
        ```
-       postgresql://neondb_owner:npg_SnZuqQOFTi67@ep-mute-forest-abftep9v.eu-west-2.aws.neon.tech/neondb?sslmode=require
+       postgresql://username:password@host/database?sslmode=require
        ```
    - Add it for all environments (Production, Preview, Development)
 
